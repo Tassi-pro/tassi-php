@@ -4,3 +4,7 @@ composer.lock
 .DS_Store
 .idea/
 .vscode/
+coverage/
+*.cache
+.env
+test_real_api.php
