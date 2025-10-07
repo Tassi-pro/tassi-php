@@ -25,14 +25,20 @@ class Util
         $obj->refreshFrom($data, $options);
 
         foreach ($data as $key => $value) {
-            if (is_array($value) && !isset($value[0])) {
-                $obj->{$key} = self::convertToTassiObject($value, $options);
-            } elseif (is_array($value) && isset($value[0])) {
+            if (!is_array($value)) {
+                // Valeur scalaire
+                $obj->{$key} = $value;
+            } elseif (empty($value)) {
+                // Tableau vide - doit rester un tableau
+                $obj->{$key} = [];
+            } elseif (array_keys($value) === range(0, count($value) - 1)) {
+                // Tableau indexé (liste) - vérifier si contient des objets
                 $obj->{$key} = array_map(function ($item) use ($options) {
                     return is_array($item) ? self::convertToTassiObject($item, $options) : $item;
                 }, $value);
             } else {
-                $obj->{$key} = $value;
+                // Tableau associatif - convertir en objet
+                $obj->{$key} = self::convertToTassiObject($value, $options);
             }
         }
 
