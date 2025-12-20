@@ -15,8 +15,6 @@ cd mon-projet-tassi
 ```bash
 # Initialiser composer
 composer init --no-interaction
-
-# OU créer un composer.json manuel
 ```
 
 Créez un fichier `composer.json` :
@@ -75,7 +73,6 @@ Tassi::setEnvironment("sandbox");
 
 // Test de connexion
 try {
-    // Récupérer la liste des packages
     $result = Package::all();
 
     echo "Connexion réussie à l'API Tassi!\n";
@@ -161,7 +158,6 @@ use Tassi\Package;
 
 Tassi::setApiKey("votre_cle");
 
-// Récupérer tous les packages
 $result = Package::all();
 
 foreach ($result->packages as $pkg) {
@@ -173,7 +169,7 @@ foreach ($result->packages as $pkg) {
 }
 ```
 
-### Exemple 2 : Créer une expédition
+### Exemple 2 : Créer et confirmer une expédition
 
 ```php
 <?php
@@ -194,44 +190,38 @@ $shipmentData = [
         "city" => "Cotonou",
         "country_code" => "BJ"
     ],
+    "pickup_point_id" => 4,
     "package" => [
         "description" => "Test package",
         "weight" => 2.5,
         "dimensions" => "20x15x10",
         "declared_value" => "50",
         "currency" => "XOF"
-    ],
-    "route" => [
-        "origin" => "Cotonou",
-        "destination" => "Porto-Novo"
     ]
 ];
 
-$shipment = Shipment::create($shipmentData);
-echo "Expédition créée: " . $shipment->id . "\n";
-echo "Status: " . $shipment->status . "\n";
+try {
+    // Étape 1: Créer l'expédition
+    $result = Shipment::create($shipmentData);
+
+    echo "Options de livraison disponibles:\n";
+    foreach ($result->delivery_options as $option) {
+        echo "  - {$option->option_type}: {$option->cost} (route {$option->route->id})\n";
+    }
+
+    // Étape 2: Confirmer avec la première option
+    $routeId = $result->delivery_options[0]->route->id;
+    $confirmation = Shipment::confirm($routeId);
+
+    echo "\nExpédition confirmée!\n";
+    echo "Message: " . $confirmation->message . "\n";
+    echo "Montant débité: " . $confirmation->movement->amount . "\n";
+} catch (Exception $e) {
+    echo "Erreur: " . $e->getMessage() . "\n";
+}
 ```
 
-### Exemple 3 : Suivre un package
-
-```php
-<?php
-require 'vendor/autoload.php';
-
-use Tassi\Tassi;
-use Tassi\Package;
-
-Tassi::setApiKey("votre_cle");
-
-// Récupérer un package
-$package = Package::retrieve(4);
-
-// Suivre le package
-$tracking = $package->track();
-echo "Informations de suivi récupérées\n";
-```
-
-### Exemple 4 : Gérer une marketplace
+### Exemple 3 : Gérer une marketplace
 
 ```php
 <?php
@@ -250,6 +240,10 @@ echo "Active: " . ($marketplace->is_active ? "Oui" : "Non") . "\n";
 // Historique du wallet
 $history = $marketplace->getWalletHistory();
 echo "Mouvements: " . count($history->wallet_movements) . "\n";
+
+foreach ($history->wallet_movements as $movement) {
+    echo "  - " . $movement->action . ": " . $movement->amount . "\n";
+}
 ```
 
 ## Structure recommandée du projet
@@ -301,17 +295,16 @@ $dotenv->load();
 // Configuration Tassi
 Tassi::setApiKey($_ENV['TASSI_API_KEY']);
 Tassi::setEnvironment($_ENV['TASSI_ENVIRONMENT'] ?? 'sandbox');
-
-// Autres configurations...
 ```
 
 ### index.php
 
 ```php
 <?php
-require 'config.php';  // Charge automatiquement la configuration
+require 'config.php';
 
 use Tassi\Package;
+use Tassi\Shipment;
 
 // Votre code ici
 $packages = Package::all();
@@ -326,6 +319,7 @@ require 'vendor/autoload.php';
 
 use Tassi\Tassi;
 use Tassi\Package;
+use Tassi\Shipment;
 use Tassi\Error\TassiError;
 use Tassi\Error\InvalidRequestError;
 use Tassi\Error\ApiConnectionError;
@@ -333,6 +327,7 @@ use Tassi\Error\NotFoundError;
 
 Tassi::setApiKey("votre_cle");
 
+// Test récupération package inexistant
 try {
     $package = Package::retrieve(999999);
 } catch (NotFoundError $e) {
@@ -344,7 +339,27 @@ try {
 } catch (TassiError $e) {
     echo "Erreur Tassi: " . $e->getMessage() . "\n";
 }
+
+// Test confirmation route invalide
+try {
+    $result = Shipment::confirm(999999);
+} catch (ApiConnectionError $e) {
+    echo "Erreur confirmation (HTTP " . $e->getHttpStatus() . "): " . $e->getMessage() . "\n";
+}
 ```
+
+## Récapitulatif des méthodes
+
+| Ressource | Méthode | Description |
+|-----------|---------|-------------|
+| **Package** | `all($params?)` | Lister les packages |
+| | `retrieve($id)` | Récupérer un package |
+| | `update($id, $params)` | Mettre à jour un package |
+| **Shipment** | `create($params)` | Créer, obtenir options |
+| | `confirm($routeId)` | Confirmer l'expédition |
+| **Marketplace** | `retrieve($id)` | Récupérer une marketplace |
+| | `update($id, $params)` | Mettre à jour |
+| | `getWalletHistory()` | Historique wallet |
 
 ## Prochaines étapes
 

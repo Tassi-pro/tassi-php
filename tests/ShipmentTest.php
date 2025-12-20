@@ -22,64 +22,50 @@ class ShipmentTest extends TestCase
         Tassi::setEnvironment('sandbox');
     }
 
-    public function testCreateComplete()
+    public function testCreate()
     {
         $payload = [
             "marketplace_id" => "1",
-            "customer_id" => "",
             "customer" => [
-                "first_name" => "Doe",
-                "last_name" => "Jane",
-                "email" => "doe@gmail.com",
-                "address" => "Rue 123, Houéyiho, Cotonou",
+                "first_name" => "John",
+                "last_name" => "Doe",
+                "email" => "john@example.com",
+                "address" => "123 Main St",
                 "city" => "Cotonou",
                 "country_code" => "BJ"
             ],
-            "pickup_point_id" => "",
-            "pickup_point" => [
-                "name" => "Point Relais Houéyiho",
-                "address" => "Carrefour Houéyiho, Cotonou",
-                "city" => "Cotonou",
-                "postal_code" => "22901",
-                "latitude" => 6.3703,
-                "longitude" => 2.3912,
-                "phone" => "+22961020304",
-                "email" => "pickup.houeyiho@example.com",
-                "is_active" => true
-            ],
+            "pickup_point_id" => 4,
             "package" => [
-                "description" => "Colis test contenant accessoires électroniques",
+                "description" => "Colis test",
                 "weight" => 5,
                 "dimensions" => "10x10x10",
                 "declared_value" => "100",
-                "currency" => "USD",
+                "currency" => "XOF",
                 "insurance" => false
-            ],
-            "route" => [
-                "origin" => "Cotonou",
-                "destination" => "Porto-Novo",
-                "stops" => [
-                    [
-                        "city" => "Sèmè-Kpodji",
-                        "address" => "Avenue de l'Inter, Sèmè-Kpodji",
-                        "latitude" => 6.3512,
-                        "longitude" => 2.4987
-                    ]
-                ]
             ]
         ];
 
         $mockResponse = [
-            "shipment" => [
-                "id" => 1,
-                "marketplace_id" => 1,
-                "package_id" => 1,
-                "status" => "created"
+            "delivery_options" => [
+                [
+                    "id" => 17,
+                    "option_type" => "economy",
+                    "estimated_days" => 1,
+                    "cost" => "14.0",
+                    "route" => ["id" => 17, "origin" => "Cotonou", "destination" => "Porto-Novo"]
+                ],
+                [
+                    "id" => 16,
+                    "option_type" => "express",
+                    "estimated_days" => 1,
+                    "cost" => "20.0",
+                    "route" => ["id" => 16]
+                ]
             ]
         ];
 
         $mock = new MockHandler([
-            new Response(201, [], json_encode($mockResponse))
+            new Response(200, [], json_encode($mockResponse))
         ]);
 
         $handlerStack = HandlerStack::create($mock);
@@ -93,26 +79,21 @@ class ShipmentTest extends TestCase
 
         Shipment::setRequestor($requestor);
 
-        $shipment = Shipment::create($payload);
+        $result = Shipment::create($payload);
 
-        $this->assertObjectHasProperty('id', $shipment);
-        $this->assertEquals("created", $shipment->status);
+        $this->assertObjectHasProperty('delivery_options', $result);
+        $this->assertCount(2, $result->delivery_options);
+        $this->assertEquals("economy", $result->delivery_options[0]->option_type);
+        $this->assertEquals(17, $result->delivery_options[0]->route->id);
     }
 
     public function testCreateValidationError()
     {
-        $invalidPayload = [
-            "marketplace_id" => "1",
-            "customer" => [
-                "first_name" => "Doe"
-            ]
-        ];
-
         $mock = new MockHandler([
             new RequestException(
                 "Client error",
                 new Request('POST', 'test'),
-                new Response(400, [], json_encode(["error" => "Missing required customer fields"]))
+                new Response(400, [], json_encode(["error" => "Missing required fields"]))
             )
         ]);
 
@@ -128,30 +109,54 @@ class ShipmentTest extends TestCase
         Shipment::setRequestor($requestor);
 
         $this->expectException(ApiConnectionError::class);
-        Shipment::create($invalidPayload);
+        Shipment::create(["marketplace_id" => "1"]);
     }
 
-    public function testCreateInvalidPackageWeight()
+    public function testConfirm()
     {
-        $payload = [
-            "marketplace_id" => "1",
-            "customer" => [
-                "first_name" => "Test",
-                "last_name" => "User",
-                "email" => "test@example.com"
+        $mockResponse = [
+            "movement" => [
+                "id" => 26,
+                "action" => "debit",
+                "description" => "Shipment cost for route ID 17",
+                "amount" => "14.0",
+                "wallet_id" => 7,
+                "created_at" => "2025-12-19T15:50:50.413Z"
             ],
-            "package" => [
-                "description" => "Test package",
-                "weight" => -5,
-                "dimensions" => "invalid"
-            ]
+            "message" => "shipment confirmed successfully"
         ];
 
+        $mock = new MockHandler([
+            new Response(200, [], json_encode($mockResponse))
+        ]);
+
+        $handlerStack = HandlerStack::create($mock);
+        $client = new Client(['handler' => $handlerStack]);
+
+        $requestor = new Requestor();
+        $reflection = new \ReflectionClass($requestor);
+        $property = $reflection->getProperty('client');
+        $property->setAccessible(true);
+        $property->setValue($requestor, $client);
+
+        Shipment::setRequestor($requestor);
+
+        $result = Shipment::confirm(17);
+
+        $this->assertEquals("shipment confirmed successfully", $result->message);
+        $this->assertObjectHasProperty('movement', $result);
+        $this->assertEquals(26, $result->movement->id);
+        $this->assertEquals("debit", $result->movement->action);
+        $this->assertEquals("14.0", $result->movement->amount);
+    }
+
+    public function testConfirmInvalidRoute()
+    {
         $mock = new MockHandler([
             new RequestException(
                 "Client error",
                 new Request('POST', 'test'),
-                new Response(400, [], json_encode(["error" => "Invalid package weight or dimensions"]))
+                new Response(404, [], json_encode(["error" => "Route not found"]))
             )
         ]);
 
@@ -167,6 +172,6 @@ class ShipmentTest extends TestCase
         Shipment::setRequestor($requestor);
 
         $this->expectException(ApiConnectionError::class);
-        Shipment::create($payload);
+        Shipment::confirm(99999);
     }
 }

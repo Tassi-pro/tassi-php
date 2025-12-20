@@ -8,4 +8,13 @@ class Shipment extends Resource
     {
         return self::_create($params ?? [], $headers);
     }
+
+    public static function confirm($routeId, ?array $headers = null)
+    {
+        $url = self::classPath() . '/confirm';
+        $params = ['route_id' => $routeId];
+
+        $response = self::staticRequest('post', $url, $params, $headers);
+        return Util::arrayToTassiObject($response['data'], $response['options']);
+    }
 }

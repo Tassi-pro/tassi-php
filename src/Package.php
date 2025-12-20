@@ -18,20 +18,4 @@ class Package extends Resource
     {
         return self::_update($id, $params ?? [], $headers);
     }
-
-    public function track(?array $headers = null)
-    {
-        $url = $this->instanceUrl() . '/track';
-
-        $response = static::staticRequest('get', $url, [], $headers);
-        return Util::arrayToTassiObject($response['data'], $response['options']);
-    }
-
-    public function getShippingLabel($labelId, ?array $headers = null)
-    {
-        $url = $this->instanceUrl() . '/shipping_labels/' . $labelId;
-
-        $response = static::staticRequest('get', $url, [], $headers);
-        return Util::arrayToTassiObject($response['data'], $response['options']);
-    }
 }

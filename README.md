@@ -64,19 +64,6 @@ Puis installez :
 composer install
 ```
 
-#### Installation d'une version spécifique
-
-```bash
-# Tag/Release spécifique
-composer require tassi/tassi-php:v1.0.0
-
-# Branche spécifique
-composer require tassi/tassi-php:dev-main
-
-# Commit spécifique
-composer require tassi/tassi-php:dev-main#abc1234
-```
-
 #### Vérification de l'installation
 
 ```php
@@ -89,12 +76,6 @@ echo 'Tassi SDK version: ' . Tassi::VERSION . "\n";
 **Sortie attendue :**
 ```
 Tassi SDK version: 1.0.0
-```
-
-#### Mise à jour
-
-```bash
-composer update tassi/tassi-php
 ```
 
 ## Configuration
@@ -112,7 +93,7 @@ Tassi::setEnvironment("sandbox");  // ou "live"
 
 ## Utilisation
 
-### Créer une expédition
+### Créer et confirmer une expédition
 
 ```php
 <?php
@@ -128,6 +109,7 @@ $shipmentData = [
         "city" => "Cotonou",
         "country_code" => "BJ"
     ],
+    "pickup_point_id" => 4,
     "package" => [
         "description" => "Colis test contenant accessoires électroniques",
         "weight" => 5,
@@ -135,26 +117,25 @@ $shipmentData = [
         "declared_value" => "100",
         "currency" => "USD",
         "insurance" => false
-    ],
-    "route" => [
-        "origin" => "Cotonou",
-        "destination" => "Porto-Novo",
-        "stops" => [
-            [
-                "city" => "Sèmè-Kpodji",
-                "address" => "Avenue de l'Inter, Sèmè-Kpodji",
-                "latitude" => 6.3512,
-                "longitude" => 2.4987
-            ]
-        ]
     ]
 ];
 
 try {
-    $shipment = Shipment::create($shipmentData);
-    echo "Expédition créée avec succès\n";
-    echo "ID: " . $shipment->id . "\n";
-    echo "Status: " . $shipment->status . "\n";
+    // Étape 1: Créer l'expédition et obtenir les options
+    $result = Shipment::create($shipmentData);
+
+    echo "Options de livraison disponibles:\n";
+    foreach ($result->delivery_options as $option) {
+        echo "- {$option->option_type}: {$option->cost} ({$option->estimated_days}j)\n";
+        echo "  Route ID: {$option->route->id}\n";
+    }
+
+    // Étape 2: Confirmer avec l'option choisie
+    $routeId = $result->delivery_options[0]->route->id;
+    $confirmation = Shipment::confirm($routeId);
+
+    echo "Message: " . $confirmation->message . "\n";
+    echo "Montant débité: " . $confirmation->movement->amount . "\n";
 } catch (Exception $e) {
     echo "Erreur: " . $e->getMessage() . "\n";
 }
@@ -186,14 +167,6 @@ $updatedPackage = Package::update(4, [
     "weight" => "15.0"
 ]);
 echo "Package mis à jour: " . $updatedPackage->description . "\n";
-
-// Suivre un package
-$trackingInfo = $package->track();
-echo "Informations de suivi récupérées\n";
-
-// Récupérer l'étiquette d'expédition
-$label = $package->getShippingLabel(1);
-echo "Étiquette: " . $label->shipping_label->filename . "\n";
 ```
 
 ### Gérer les marketplaces
@@ -223,18 +196,9 @@ foreach ($history->wallet_movements as $movement) {
 }
 ```
 
-## Structure de l'API
+## Ressources disponibles
 
-### Classes principales
-
-- **Tassi** : Configuration globale (API key, environnement)
-- **TassiObject** : Classe de base pour tous les objets
-- **Resource** : Classe de base avec méthodes CRUD héritées
-- **Requestor** : Gestionnaire des requêtes HTTP
-
-### Ressources disponibles
-
-#### 1. Package
+### Package
 
 **Méthodes de classe :**
 
@@ -242,18 +206,14 @@ foreach ($history->wallet_movements as $movement) {
 - `Package::retrieve($id, $headers = null)` - Récupère un package par ID
 - `Package::update($id, $params = null, $headers = null)` - Met à jour un package
 
-**Méthodes d'instance :**
-
-- `$package->track($headers = null)` - Suivi du package
-- `$package->getShippingLabel($labelId, $headers = null)` - Récupère l'étiquette d'expédition
-
-#### 2. Shipment
+### Shipment
 
 **Méthodes de classe :**
 
-- `Shipment::create($params = null, $headers = null)` - Crée une nouvelle expédition
+- `Shipment::create($params = null, $headers = null)` - Crée une expédition et retourne les options de livraison
+- `Shipment::confirm($routeId, $headers = null)` - Confirme l'expédition avec la route choisie
 
-#### 3. Marketplace
+### Marketplace
 
 **Méthodes de classe :**
 
@@ -344,25 +304,9 @@ tassi-php/
 └── README.md                 # Documentation
 ```
 
-## Dépendances
-
-### Production
-
-```
-guzzlehttp/guzzle: ^7.0      # Client HTTP
-doctrine/inflector: ^2.0     # Pluralisation des noms de ressources
-```
-
-### Développement
-
-```
-phpunit/phpunit: ^9.0        # Framework de tests
-mockery/mockery: ^1.4        # Mocking
-```
-
 ## Exemples complets
 
-### Workflow complet : Créer et suivre une expédition
+### Workflow complet : Créer et confirmer une expédition
 
 ```php
 <?php
@@ -375,7 +319,7 @@ use Tassi\Package;
 // Configuration
 Tassi::setApiKey("votre_cle_api");
 
-// Créer une expédition
+// Données de l'expédition
 $shipmentData = [
     "marketplace_id" => "1",
     "customer" => [
@@ -386,36 +330,32 @@ $shipmentData = [
         "city" => "Cotonou",
         "country_code" => "BJ"
     ],
+    "pickup_point_id" => 4,
     "package" => [
         "description" => "Vêtements",
         "weight" => 1.2,
         "dimensions" => "30x20x15",
         "declared_value" => "50",
         "currency" => "XOF"
-    ],
-    "route" => [
-        "origin" => "Cotonou",
-        "destination" => "Abomey-Calavi"
     ]
 ];
 
 try {
-    // Créer l'expédition
-    $shipment = Shipment::create($shipmentData);
-    echo "Expédition créée: " . $shipment->id . "\n";
+    // Étape 1: Créer l'expédition
+    $result = Shipment::create($shipmentData);
+    echo "Options disponibles:\n";
 
-    // Récupérer les packages associés
-    $packages = Package::all(["shipment_id" => $shipment->id]);
-
-    if (isset($packages->packages) && count($packages->packages) > 0) {
-        $package = $packages->packages[0];
-        echo "Package ID: " . $package->id . "\n";
-        echo "Tracking: " . $package->tracking_number . "\n";
-
-        // Suivre le package
-        $tracking = $package->track();
-        echo "Statut: suivi récupéré\n";
+    foreach ($result->delivery_options as $option) {
+        echo "- {$option->option_type}: {$option->cost} (route {$option->route->id})\n";
     }
+
+    // Étape 2: Confirmer avec la première option
+    $routeId = $result->delivery_options[0]->route->id;
+    $confirmation = Shipment::confirm($routeId);
+
+    echo "\nExpédition confirmée!\n";
+    echo "Message: " . $confirmation->message . "\n";
+    echo "Montant débité: " . $confirmation->movement->amount . "\n";
 } catch (Exception $e) {
     echo "Erreur: " . $e->getMessage() . "\n";
 }
@@ -469,13 +409,6 @@ Ouvrez une issue sur [GitHub Issues](https://github.com/Tassi-pro/tassi-php/issu
 3. Commit vos changements (`git commit -am 'Ajouter nouvelle fonctionnalité'`)
 4. Push vers la branche (`git push origin feature/nouvelle-fonctionnalite`)
 5. Créer une Pull Request
-
-### Guidelines de contribution
-
-- Écrire des tests pour toute nouvelle fonctionnalité
-- Suivre les conventions de code existantes
-- Documenter les changements dans le README
-- S'assurer que tous les tests passent (`vendor/bin/phpunit`)
 
 ## Informations supplémentaires
 
