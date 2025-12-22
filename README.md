@@ -414,7 +414,8 @@ Ouvrez une issue sur [GitHub Issues](https://github.com/Tassi-pro/tassi-php/issu
 
 - **Version** : 1.0.0
 - **PHP** : >= 7.4
-- **URL de l'API** : https://tassi-api.exanora.com
+- **URL de l'API** : https://api.tassi.pro - Live
+- **URL de l'API** : https://sandbox-api.tassi.pro - Sandbox
 - **Environnements** : sandbox, live
 
 ---
