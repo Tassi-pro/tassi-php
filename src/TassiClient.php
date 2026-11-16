@@ -12,6 +12,7 @@ use Tassi\Service\PickupPoints;
 use Tassi\Service\Rates;
 use Tassi\Service\Shipments;
 use Tassi\Service\Tracking;
+use Tassi\Service\WebhookEndpoints;
 
 /**
  * Point d'entrée. Un client par compte marchand, sans état global.
@@ -38,6 +39,7 @@ final class TassiClient
     public readonly Shipments $shipments;
     public readonly Labels $labels;
     public readonly Tracking $tracking;
+    public readonly WebhookEndpoints $webhookEndpoints;
 
     private readonly HttpTransport $transport;
 
@@ -98,6 +100,7 @@ final class TassiClient
         $this->shipments = new Shipments($this->transport);
         $this->labels = new Labels($this->transport);
         $this->tracking = new Tracking($this->transport);
+        $this->webhookEndpoints = new WebhookEndpoints($this->transport);
     }
 
     /**
