@@ -73,11 +73,13 @@ class ApiException extends TassiException
         return $this->statusCode;
     }
 
+    /** @return list<string> */
     public function getMessages(): array
     {
         return $this->messages;
     }
 
+    /** @return array<string, mixed> */
     public function getErrors(): array
     {
         return $this->errors;
