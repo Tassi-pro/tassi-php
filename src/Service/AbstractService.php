@@ -13,9 +13,7 @@ use Tassi\Http\HttpTransport;
  */
 abstract class AbstractService
 {
-    public function __construct(protected readonly HttpTransport $transport)
-    {
-    }
+    public function __construct(protected readonly HttpTransport $transport) {}
 
     protected static function id(int $id): string
     {
@@ -24,5 +22,12 @@ abstract class AbstractService
         }
 
         return (string) $id;
+    }
+
+    protected function key(?string $idempotencyKey): string
+    {
+        return $idempotencyKey !== null
+            ? \Tassi\IdempotencyKey::check($idempotencyKey)
+            : \Tassi\IdempotencyKey::random();
     }
 }

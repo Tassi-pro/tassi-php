@@ -23,6 +23,8 @@ final class TassiClient
         'request_factory' => null,
         'stream_factory' => null,
         'user_agent_suffix' => null,
+        'max_retries' => 2,
+        'sleeper' => null,
     ];
 
     public readonly Wallet $wallet;
@@ -59,6 +61,11 @@ final class TassiClient
             throw new \InvalidArgumentException('timeout doit être positif.');
         }
 
+        $maxRetries = (int) $options['max_retries'];
+        if ($maxRetries < 0) {
+            throw new \InvalidArgumentException('max_retries ne peut pas être négatif.');
+        }
+
         $userAgent = 'tassi-php/' . self::VERSION . ' PHP/' . PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION;
         if (!empty($options['user_agent_suffix'])) {
             $userAgent .= ' ' . $options['user_agent_suffix'];
@@ -71,6 +78,8 @@ final class TassiClient
             requestFactory: $options['request_factory'] ?? HttpClientFactory::createRequestFactory(),
             streamFactory: $options['stream_factory'] ?? HttpClientFactory::createStreamFactory(),
             userAgent: $userAgent,
+            maxRetries: $maxRetries,
+            sleeper: $options['sleeper'],
         );
 
         $this->wallet = new Wallet($this->transport);

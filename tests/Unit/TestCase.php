@@ -13,9 +13,13 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
 
     protected MockHttpClient $http;
 
+    /** @var list<float> Durées d'attente demandées, au lieu d'attendre vraiment. */
+    protected array $sleeps = [];
+
     protected function setUp(): void
     {
         $this->http = new MockHttpClient();
+        $this->sleeps = [];
     }
 
     /** @param array<string, mixed> $options */
@@ -27,6 +31,9 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
             'http_client' => $this->http,
             'request_factory' => $factory,
             'stream_factory' => $factory,
+            'sleeper' => function (float $seconds): void {
+                $this->sleeps[] = $seconds;
+            },
         ]);
     }
 }
